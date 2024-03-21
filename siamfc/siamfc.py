@@ -14,6 +14,8 @@ from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 from got10k.trackers import Tracker
 
+from .hcat.tracker import Tracker as HCAT
+
 from . import ops
 from .backbones import AlexNetV1
 from .heads import SiamFC
@@ -405,14 +407,17 @@ class FixedPatchSiam(TrackerSiamFC):
 
         return boxes, times
 
-class VariablePatchSiam(TrackerSiamFC):
+class VariablePatchSiam(HCAT):
     def __init__(self, net_path, patchnet, interval=6, conf=0.8, pscale_lr=0.25, **kwargs):
         self.conf = conf
         self.patchnet = patchnet
         self.interval = interval
         self.pscale_lr = pscale_lr
         self.tracklen_counter = []
-        super().__init__(net_path, **kwargs)
+        super().__init__(name='HCAT',
+                        backbone_path='/home/uavlab20/tracking/HCAT/backbone_res18_N2_q16.onnx',
+                        model_path='/home/uavlab20/tracking/HCAT/complete_res18_N2_q16.onnx',
+                        feature_size=16, **kwargs)
     
     def track(self, img_files, box, visualize=False):
         frame_num = len(img_files)
@@ -424,15 +429,18 @@ class VariablePatchSiam(TrackerSiamFC):
 
         for f, img_file in enumerate(img_files):
             img = ops.read_image(img_file)
-
+            # print(img, f)
             begin = time.time()
             if f == 0:
-                self.init(img, box)
+                self.initialize(img, {'init_bbox': box})
                 self.img_ckpt = img
                 self.box_ckpt = boxes[f, :]
                 scores = np.ones(1)
             elif tracked_len == self.interval:
-                boxes[f, :], scores = self.update(img)
+                # boxes[f, :], scores = self.trackHCAT(img)
+                outputs = self.trackHCAT(img)
+                scores = np.ones(1)
+                boxes[f, :] = outputs['target_bbox']
                 self.img_ckpt = img
                 self.box_ckpt = boxes[f, :]
                 tracked_len = 0
@@ -440,7 +448,9 @@ class VariablePatchSiam(TrackerSiamFC):
             else:
                 boxes[f, :], scores = self.update_with_patchnet(img)
                 if scores[0] < self.conf:
-                    boxes[f, :], scores_ = self.update(img)
+                    outputs = self.trackHCAT(img)
+                    scores = np.ones(1)
+                    boxes[f, :] = outputs['target_bbox']
                     self.img_ckpt = img
                     self.box_ckpt = boxes[f, :]
                     tracked_len = 0
@@ -450,7 +460,8 @@ class VariablePatchSiam(TrackerSiamFC):
 
 
             times[f] = time.time() - begin
-
+            if (f + 1) % 30 == 0:
+                print(f'FPS: {30 / np.average(times[f-29:f+1])}')
             if visualize:
                 ops.show_image(img, boxes[f, :], scores=scores, fig_n=f)
         print("Avg track interval: %.3f"%(float(f) / refreshed_count))

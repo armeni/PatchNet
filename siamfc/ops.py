@@ -28,7 +28,7 @@ def read_image(img_file, cvt_code=cv2.COLOR_BGR2RGB):
 
 
 def show_image(img, boxes=None, scores=None, box_fmt='ltwh', colors=None,
-               thickness=1, fig_n=1, delay=100, visualize=True,
+               thickness=1, fig_n=1, delay=1, visualize=True,
                cvt_code=cv2.COLOR_RGB2BGR):
     if cvt_code is not None:
         img = cv2.cvtColor(img, cvt_code)

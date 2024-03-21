@@ -53,8 +53,9 @@ class FourierFeature(nn.Module):
         if self.tiled:
             w1 = tile2d(w1, 1)
         w1 = w1.view(batch_size * n * n, c, k, k)
-        w1_f = torch.rfft(w1, signal_ndim=2, normalized=True, onesided=True) * self.freq_coeff
-        w1_new = torch.irfft(w1_f, signal_ndim=2, normalized=True, onesided=True, signal_sizes=w1.shape[-2:])
+        w1_f = torch.view_as_real(torch.fft.rfft(w1, dim=3))
+        w1_f *= self.freq_coeff
+        w1_new = torch.fft.irfft(torch.view_as_complex(w1_f),  dim=3)
 
         return w1_new
 
