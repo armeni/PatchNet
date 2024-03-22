@@ -158,7 +158,11 @@ class Tracker(GTracker):
 
     def initialize(self, image, info: dict) -> dict:
         bbox = info['init_bbox']
-        self.center, self.target_sz = bbox[:2], bbox[2:]
+        box = np.array([
+            bbox[0] - 1 + (bbox[2] - 1) / 2,
+            bbox[1] - 1 + (bbox[3] - 1) / 2,
+            bbox[2], bbox[3]], dtype=np.float32)
+        self.center, self.target_sz = box[:2], box[2:]
         context = 0.5 * np.sum(self.target_sz)
         self.z_sz = np.sqrt(np.prod(self.target_sz + context))
         self.x_sz = self.z_sz * 255 / 127
@@ -250,12 +254,13 @@ class Tracker(GTracker):
         # update state
         self.center_pos = np.array([cx, cy])
         self.size = np.array([width, height])
-
+        self.center = self.center_pos
         bbox = [cx - width / 2,
                 cy - height / 2,
                 width,
-                height]
-
+                height
+                ]
+        
         all_time = time.time()-tic_all
 
         out = {'target_bbox': bbox,

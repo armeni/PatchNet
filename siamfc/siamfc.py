@@ -21,7 +21,7 @@ from .backbones import AlexNetV1
 from .heads import SiamFC
 from .losses import BalancedLoss
 from .datasets import Pair
-from .transforms import SiamFCTransforms
+# from transforms import SiamFCTransforms
 
 
 __all__ = ['TrackerSiamFC', 'FixedPatchSiam', 'VariablePatchSiam']
@@ -118,9 +118,9 @@ class TrackerSiamFC(Tracker):
 
         # convert box to 0-indexed and center based [y, x, h, w]
         box = np.array([
-            box[1] - 1 + (box[3] - 1) / 2,
             box[0] - 1 + (box[2] - 1) / 2,
-            box[3], box[2]], dtype=np.float32)
+            box[1] - 1 + (box[3] - 1) / 2,
+            box[2], box[3]], dtype=np.float32)
         self.center, self.target_sz = box[:2], box[2:]
 
         # create hanning window
@@ -208,9 +208,9 @@ class TrackerSiamFC(Tracker):
 
         # return 1-indexed and left-top based bounding box
         box = np.array([
-            self.center[1] + 1 - (self.target_sz[1] - 1) / 2,
             self.center[0] + 1 - (self.target_sz[0] - 1) / 2,
-            self.target_sz[1], self.target_sz[0]])
+            self.center[1] + 1 - (self.target_sz[1] - 1) / 2,
+            self.target_sz[0], self.target_sz[1]])
 
         return box, np.ones(1)
     
@@ -353,9 +353,9 @@ class FixedPatchSiam(TrackerSiamFC):
         imgs = np.stack((self.img_ckpt, img))
         imgs = imgs[:,:,:,::-1]
         box = np.array([
-            self.center[1] - (self.target_sz[1] - 1) / 2,
             self.center[0] - (self.target_sz[0] - 1) / 2,
-            self.target_sz[1], self.target_sz[0]])
+            self.center[1] - (self.target_sz[1] - 1) / 2,
+            self.target_sz[0], self.target_sz[1]])
         corr_boxes = np.stack((self.box_ckpt, box))
         corr_boxes[0,:2] -= 1
         corr_boxes[:,2:] += corr_boxes[:, :2]
@@ -408,7 +408,7 @@ class FixedPatchSiam(TrackerSiamFC):
         return boxes, times
 
 class VariablePatchSiam(HCAT):
-    def __init__(self, net_path, patchnet, interval=6, conf=0.8, pscale_lr=0.25, **kwargs):
+    def __init__(self, net_path, patchnet, interval=6, conf=0.001, pscale_lr=0.25, **kwargs):
         self.conf = conf
         self.patchnet = patchnet
         self.interval = interval
@@ -426,11 +426,16 @@ class VariablePatchSiam(HCAT):
         times = np.zeros(frame_num)
         refreshed_count = 0
         tracked_len = 0
+        fps = []
 
         for f, img_file in enumerate(img_files):
             img = ops.read_image(img_file)
+            tic = cv2.getTickCount()
+
             # print(img, f)
-            begin = time.time()
+            # begin = time.time()
+            # if f == 500:
+            #     break
             if f == 0:
                 self.initialize(img, {'init_bbox': box})
                 self.img_ckpt = img
@@ -438,6 +443,7 @@ class VariablePatchSiam(HCAT):
                 scores = np.ones(1)
             elif tracked_len == self.interval:
                 # boxes[f, :], scores = self.trackHCAT(img)
+                
                 outputs = self.trackHCAT(img)
                 scores = np.ones(1)
                 boxes[f, :] = outputs['target_bbox']
@@ -447,9 +453,12 @@ class VariablePatchSiam(HCAT):
                 refreshed_count += 1
             else:
                 boxes[f, :], scores = self.update_with_patchnet(img)
+                # print(f'Box: {boxes[f, :]}')
+                # print(f'Conf: {self.conf}')
+                # print(f'Score: {scores[0]}')
                 if scores[0] < self.conf:
                     outputs = self.trackHCAT(img)
-                    scores = np.ones(1)
+                    scores_ = np.ones(1)
                     boxes[f, :] = outputs['target_bbox']
                     self.img_ckpt = img
                     self.box_ckpt = boxes[f, :]
@@ -457,16 +466,20 @@ class VariablePatchSiam(HCAT):
                     refreshed_count += 1
                 else:
                     tracked_len += 1
-
-
-            times[f] = time.time() - begin
-            if (f + 1) % 30 == 0:
-                print(f'FPS: {30 / np.average(times[f-29:f+1])}')
+            # print(f'frame {f} Drawing boxes: {boxes[f, :]}')
+            # times[f] = time.time() - begin
+            toc = cv2.getTickCount() - tic
+            toc /= cv2.getTickFrequency()
+            fps.append(1/toc)
+            # if (f + 1) % 30 == 0:
+            #     print(f'FPS: {30 / np.average(times[f-29:f+1])}')
             if visualize:
                 ops.show_image(img, boxes[f, :], scores=scores, fig_n=f)
+        
+        avg_fps = sum(fps) / len(fps)
+        print(f'FPS: ', avg_fps)  
         print("Avg track interval: %.3f"%(float(f) / refreshed_count))
         self.tracklen_counter.append(float(f) / refreshed_count)
-
         return boxes, times
 
     @torch.no_grad()
@@ -475,19 +488,20 @@ class VariablePatchSiam(HCAT):
         imgs = np.stack((self.img_ckpt, img))
         imgs = imgs[:,:,:,::-1]
         box = np.array([
-            self.center[1] - (self.target_sz[1] - 1) / 2,
             self.center[0] - (self.target_sz[0] - 1) / 2,
-            self.target_sz[1], self.target_sz[0]])
+            self.center[1] - (self.target_sz[1] - 1) / 2,
+            self.target_sz[0], self.target_sz[1]])
         corr_boxes = np.stack((self.box_ckpt, box))
         corr_boxes[0,:2] -= 1
         corr_boxes[:,2:] += corr_boxes[:, :2]
         corr_boxes = corr_boxes[:,None]
+        # print(f'Corr_Box: {corr_boxes}')
 
         scores, bboxes = self.patchnet.track(imgs, corr_boxes)
-
+        # print(f'PatchNet boxes: {bboxes}')
         if scores[0] >= self.conf:
             self.center = (bboxes[0,:2] + bboxes[0, 2:]) / 2
-            self.center = self.center[::-1]
+            # self.center = self.center[::-1]
             new_size = bboxes[0, 2:] - bboxes[0, :2]
             old_size = corr_boxes[1, 0, 2:] - corr_boxes[1, 0, :2]
             scale = np.mean(new_size / old_size)

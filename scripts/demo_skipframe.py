@@ -20,12 +20,12 @@ if __name__ == '__main__':
     # except:
     #     anno = np.loadtxt(seq_dir + 'groundtruth_rect.txt', delimiter=',')
     
-    net_path = 'pretrasdfasdfnet_e50.pth'
+    net_path = 'pretrained/siamfc_alexnet_e50.pth'
     patchnet_path = 'pretrained/patchnet.pth'
     patchnet = PatchNet()
     patchnet.create_architecture()
-    patchnet.load_state_dict(torch.load(patchnet_path))
+    patchnet.load_state_dict(torch.load(patchnet_path)) # map_location=torch.device('cpu') for CPU
     patchnet.eval()
     patchnet.cuda()
-    tracker = VariablePatchSiam(net_path, patchnet, interval=29)
+    tracker = VariablePatchSiam(net_path, patchnet, interval=10) # 0 for only HCAT
     tracker.track(img_files, anno[0], visualize=True)
