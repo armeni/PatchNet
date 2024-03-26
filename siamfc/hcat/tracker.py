@@ -255,10 +255,10 @@ class Tracker(GTracker):
         self.center_pos = np.array([cx, cy])
         self.size = np.array([width, height])
         self.center = self.center_pos
-        bbox = [cx - width / 2,
-                cy - height / 2,
-                width,
-                height
+        bbox = [int(cx - width / 2),
+                int(cy - height / 2),
+                int(width),
+                int(height)
                 ]
         
         all_time = time.time()-tic_all

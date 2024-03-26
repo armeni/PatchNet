@@ -408,7 +408,7 @@ class FixedPatchSiam(TrackerSiamFC):
         return boxes, times
 
 class VariablePatchSiam(HCAT):
-    def __init__(self, net_path, patchnet, interval=6, conf=0.001, pscale_lr=0.25, **kwargs):
+    def __init__(self, net_path, patchnet, interval=6, conf=0.0, pscale_lr=0.25, **kwargs):
         self.conf = conf
         self.patchnet = patchnet
         self.interval = interval
@@ -419,24 +419,26 @@ class VariablePatchSiam(HCAT):
                         model_path='/home/uavlab20/tracking/HCAT/complete_res18_N2_q16.onnx',
                         feature_size=16, **kwargs)
     
-    def track(self, img_files, box, visualize=False):
-        frame_num = len(img_files)
-        boxes = np.zeros((frame_num, 4))
+    def track(self, cap, box, visualize=False):
+        boxes = np.zeros((1000, 4))
         boxes[0] = box
-        times = np.zeros(frame_num)
+        times = np.zeros(1000)
         refreshed_count = 0
         tracked_len = 0
         fps = []
-
-        for f, img_file in enumerate(img_files):
-            img = ops.read_image(img_file)
+        f = 0
+        ret, img = cap.read()
+        while ret:
             tic = cv2.getTickCount()
+            ret, img = cap.read()
+            # img = ops.read_image(img_file)
 
             # print(img, f)
             # begin = time.time()
             # if f == 500:
             #     break
             if f == 0:
+                box = cv2.selectROI("select the area", img) 
                 self.initialize(img, {'init_bbox': box})
                 self.img_ckpt = img
                 self.box_ckpt = boxes[f, :]
@@ -452,6 +454,7 @@ class VariablePatchSiam(HCAT):
                 tracked_len = 0
                 refreshed_count += 1
             else:
+                print(f)
                 boxes[f, :], scores = self.update_with_patchnet(img)
                 # print(f'Box: {boxes[f, :]}')
                 # print(f'Conf: {self.conf}')
@@ -466,6 +469,7 @@ class VariablePatchSiam(HCAT):
                     refreshed_count += 1
                 else:
                     tracked_len += 1
+                
             # print(f'frame {f} Drawing boxes: {boxes[f, :]}')
             # times[f] = time.time() - begin
             toc = cv2.getTickCount() - tic
@@ -474,17 +478,21 @@ class VariablePatchSiam(HCAT):
             # if (f + 1) % 30 == 0:
             #     print(f'FPS: {30 / np.average(times[f-29:f+1])}')
             if visualize:
-                ops.show_image(img, boxes[f, :], scores=scores, fig_n=f)
+                ops.show_image(img, boxes[f, :], scores=scores, fig_n=f, cvt_code=None)
+            ret, img = cap.read()
+            f+=1
         
         avg_fps = sum(fps) / len(fps)
         print(f'FPS: ', avg_fps)  
-        print("Avg track interval: %.3f"%(float(f) / refreshed_count))
-        self.tracklen_counter.append(float(f) / refreshed_count)
-        return boxes, times
+        # print("Avg track interval: %.3f"%(float(f) / refreshed_count))
+        # self.tracklen_counter.append(float(f) / refreshed_count)
+        return boxes, avg_fps
 
     @torch.no_grad()
     def update_with_patchnet(self, img):
-        
+        print(img.shape)
+
+        # print(f'image ckpt: {self.img_ckpt.shape} ... img: {img.shape}')
         imgs = np.stack((self.img_ckpt, img))
         imgs = imgs[:,:,:,::-1]
         box = np.array([
