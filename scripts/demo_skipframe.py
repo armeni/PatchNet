@@ -28,55 +28,6 @@ def read_ground_truth_bbox(gt_bbox_file):
             return []
         
 
-def get_axis_aligned_bbox(region):
-    """ convert region to (cx, cy, w, h) that represent by axis aligned box
-    """
-    region = np.array(region)
-    nv = region.size
-    if nv == 8:
-        cx = np.mean(region[0::2])
-        cy = np.mean(region[1::2])
-        x1 = min(region[0::2])
-        x2 = max(region[0::2])
-        y1 = min(region[1::2])
-        y2 = max(region[1::2])
-        A1 = np.linalg.norm(region[0:2] - region[2:4]) * \
-            np.linalg.norm(region[2:4] - region[4:6])
-        A2 = (x2 - x1) * (y2 - y1)
-        s = np.sqrt(A1 / A2)
-        w = s * (x2 - x1) + 1
-        h = s * (y2 - y1) + 1
-    else:
-        x = region[0]
-        y = region[1]
-        w = region[2]
-        h = region[3]
-        cx = x+w/2
-        cy = y+h/2
-    return cx, cy, w, h
-
-
-def onMouse(event, x, y, _, __):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        initial = True
-        mouse_pressed = True
-        gt_bbox[:2] = [x, y]
-        gt_bbox[2:] = [None, None]
-    if event == cv2.EVENT_LBUTTONUP:
-        if mouse_pressed:
-            mouse_pressed = False
-            gt_bbox[2:] = [x - gt_bbox[0], y - gt_bbox[1]]
-            if abs(gt_bbox[2]) <= 10 or abs(gt_bbox[2]) <= 10:
-                gt_bbox = [None, None, None, None]
-            else:
-                if gt_bbox[2] < 0:
-                    gt_bbox[0], gt_bbox[2] = gt_bbox[0] + gt_bbox[2], -gt_bbox[2]
-                if gt_bbox[3] < 0:
-                    gt_bbox[1], gt_bbox[3] = gt_bbox[1] + gt_bbox[3], -gt_bbox[3]
-    if event == cv2.EVENT_MOUSEMOVE:
-        if mouse_pressed:
-            gt_bbox[2:] = [x - gt_bbox[0], y - gt_bbox[1]]
-
 if __name__ == '__main__':
 #     sequence_folders = sorted(glob.glob('/home/uavlab20/tracking/Datasets/UAV123/sequences/*/'))
 #     with open("/home/uavlab20/tracking/fps/PatchNet_HCAT_5000_uav_fps_results_GPU.txt", 'w') as fps_file:
@@ -116,5 +67,5 @@ if __name__ == '__main__':
     patchnet.load_state_dict(torch.load(patchnet_path)) # map_location=torch.device('cpu') for CPU
     patchnet.eval()
     patchnet.cuda()
-    tracker = VariablePatchSiam(net_path, patchnet, interval=0) # 0 for only HCAT
+    tracker = VariablePatchSiam(net_path, patchnet, interval=7) # 0 for only HCAT
     bbox, avg_fps = tracker.track(cap, gt_bbox, visualize=True)

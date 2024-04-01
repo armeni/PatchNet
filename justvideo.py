@@ -8,4 +8,3 @@ while ret:
     print(f'frame: {f}')    
     ret, img = cap.read()
     f+=1
-

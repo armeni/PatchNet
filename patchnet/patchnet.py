@@ -102,7 +102,7 @@ class ROITrackBase(nn.Module):
         kernel = kernel - kernel.min()
         kernel = np.floor(kernel / kernel.max() * 255).astype(np.uint8)
         cv2.imshow("win2", kernel)
-        cv2.waitKey()
+        # cv2.waitKey()
 
     def _estimate_peak(self, responses):
         responses = responses.detach()

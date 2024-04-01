@@ -454,7 +454,6 @@ class VariablePatchSiam(HCAT):
                 tracked_len = 0
                 refreshed_count += 1
             else:
-                print(f)
                 boxes[f, :], scores = self.update_with_patchnet(img)
                 # print(f'Box: {boxes[f, :]}')
                 # print(f'Conf: {self.conf}')
@@ -472,16 +471,18 @@ class VariablePatchSiam(HCAT):
                 
             # print(f'frame {f} Drawing boxes: {boxes[f, :]}')
             # times[f] = time.time() - begin
-            toc = cv2.getTickCount() - tic
-            toc /= cv2.getTickFrequency()
-            fps.append(1/toc)
+            
             # if (f + 1) % 30 == 0:
             #     print(f'FPS: {30 / np.average(times[f-29:f+1])}')
             if visualize:
                 ops.show_image(img, boxes[f, :], scores=scores, fig_n=f, cvt_code=None)
+            
+            toc = cv2.getTickCount() - tic
+            toc /= cv2.getTickFrequency()
+            fps.append(1/toc)
+            print(f'fps: {1/toc}')
             ret, img = cap.read()
             f+=1
-        
         avg_fps = sum(fps) / len(fps)
         print(f'FPS: ', avg_fps)  
         # print("Avg track interval: %.3f"%(float(f) / refreshed_count))
@@ -490,7 +491,6 @@ class VariablePatchSiam(HCAT):
 
     @torch.no_grad()
     def update_with_patchnet(self, img):
-        print(img.shape)
 
         # print(f'image ckpt: {self.img_ckpt.shape} ... img: {img.shape}')
         imgs = np.stack((self.img_ckpt, img))
